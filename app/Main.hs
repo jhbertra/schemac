@@ -1,4 +1,6 @@
 module Main where
 
+import Schemac
+
 main :: IO ()
-main = putStrLn "hello"
+main = defaultMain
