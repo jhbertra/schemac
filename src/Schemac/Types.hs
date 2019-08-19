@@ -31,8 +31,8 @@ data Data = Data
 instance Hashable Data
 
 data Type
-    = PrimType Prim
-    | DataType Data
+    = PrimType Int
+    | DataType Int
     deriving (Show, Eq, Ord, Generic)
 instance Hashable Type
 
@@ -40,32 +40,32 @@ data Trait = Trait
     { traitId :: Int
     , traitLinks :: [Link]
     , traitName :: String
-    , traitParents :: [Trait]
+    , traitParents :: [Int]
     , traitProps :: [Prop]
     } deriving (Show, Eq, Ord, Generic)
 instance Hashable Trait
 
 data Entity = Entity
     { entityId :: Int
-    , entityName :: String
     , entityLinks :: [Link]
+    , entityName :: String
     , entityProps :: [Prop]
-    , entityTraits :: [Trait]
+    , entityTraits :: [Int]
     } deriving (Show, Eq, Ord, Generic)
 instance Hashable Entity
 
 data Link = Link
     { linkId :: Int
-    , linkEntity :: Entity
+    , linkEntity :: Int
     , linkName :: String
-    , linkTags :: [Tag]
+    , linkTags :: [Int]
     } deriving (Show, Eq, Ord, Generic)
 instance Hashable Link
 
 data Prop = Prop
     { propId :: Int
     , propName :: String
-    , propTags :: [Tag]
+    , propTags :: [Int]
     , propType :: Type
     } deriving (Show, Eq, Ord, Generic)
 instance Hashable Prop
