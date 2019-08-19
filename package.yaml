@@ -21,6 +21,26 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- hashable
+- polysemy
+- polysemy-plugin
+- unordered-containers
+
+default-extensions:
+- ApplicativeDo
+- ConstraintKinds
+- DeriveGeneric
+- GeneralizedNewtypeDeriving
+- InstanceSigs
+- KindSignatures
+- LambdaCase
+- OverloadedStrings
+- RecordWildCards
+- ScopedTypeVariables
+- StandaloneDeriving
+- TupleSections
+- TypeApplications
+- ViewPatterns
 
 library:
   source-dirs: src
