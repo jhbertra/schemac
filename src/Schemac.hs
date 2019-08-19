@@ -120,8 +120,6 @@ digestSchema schema@Schema{..} = do
     mapM_ (output . uncurry TagName . (tagId &&& tagName)) schemaTags
     mapM_ digestTrait schemaTraits
 
-    output $ SchemaName schemaId schemaName
-
 digestData :: Member (Output Emit) r => Data -> Sem r ()
 digestData Data{..} = do
     output $ DataName dataId dataName
