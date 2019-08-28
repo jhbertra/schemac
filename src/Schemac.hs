@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds #-}
 
 module Schemac
@@ -27,7 +26,7 @@ data SchemacException
     | PropTypeNotFound String String
 
 defaultMain :: IO ()
-defaultMain = (mapM_ print) <=< runM
+defaultMain = mapM_ print <=< runM
     . fmap fst
     . runOutputList
     . runInputList
