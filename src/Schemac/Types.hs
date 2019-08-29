@@ -37,15 +37,6 @@ data Type
     deriving (Show, Eq, Ord, Generic)
 instance Hashable Type
 
-data Trait = Trait
-    { traitId :: Int
-    , traitLinks :: [Link]
-    , traitName :: String
-    , traitParents :: [Int]
-    , traitProps :: [Prop]
-    } deriving (Show, Eq, Ord, Generic)
-instance Hashable Trait
-
 data Entity = Entity
     { entityId :: Int
     , entityLinks :: [Link]
@@ -78,7 +69,6 @@ data Schema = Schema
     , schemaName :: String
     , schemaPrims :: [Prim]
     , schemaTags :: [Tag]
-    , schemaTraits :: [Trait]
     } deriving (Show, Eq)
     
 data Emit
@@ -95,11 +85,9 @@ data Emit
     | DecProp Int
     | DecSchema Int
     | DecTag Int
-    | DecTrait Int
     | EntityLink Int Int
     | EntityName Int String
     | EntityProp Int Int
-    | EntityTrait Int Int
     | LinkEntity Int Int
     | LinkTag Int Int
     | LinkName Int String
@@ -113,12 +101,7 @@ data Emit
     | SchemaName Int String
     | SchemaPrim Int Int
     | SchemaTag Int Int
-    | SchemaTrait Int Int
     | TagName Int String
-    | TraitLink Int Int
-    | TraitName Int String
-    | TraitParent Int Int
-    | TraitProp Int Int
     deriving (Eq, Show)
 
 data SchemacError
@@ -133,15 +116,8 @@ data SchemacError
     | DuplicateEntityLink EntityName LinkName [SourcePos]
     | DuplicateEntityProp EntityName PropName [SourcePos]
     | DuplicateEntityPropTag EntityName PropName TagName [SourcePos]
-    | DuplicateEntityTrait EntityName TraitName [SourcePos]
-    | DuplicateEntityTraitTag EntityName TraitName Tag [SourcePos]
     | DuplicatePrim PrimName [SourcePos]
     | DuplicateTag TagName [SourcePos]
-    | DuplicateTrait TraitName [SourcePos]
-    | DuplicateTraitLink TraitName LinkName [SourcePos]
-    | DuplicateTraitProp TraitName PropName [SourcePos]
-    | DuplicateTraitPropTag TraitName PropName TagName [SourcePos]
-    | DuplicateTraitParent TraitName TraitName [SourcePos]
     | UndefinedCasePropTag DataName CaseName PropName TagName [SourcePos]
     | UndefinedCasePropType DataName CaseName PropName TypeName [SourcePos]
     | UndefinedCaseLinkTag DataName CaseName LinkName TagName [SourcePos]
@@ -150,14 +126,8 @@ data SchemacError
     | UndefinedEntityPropType EntityName PropName TypeName [SourcePos]
     | UndefinedEntityLinkTag EntityName LinkName TagName [SourcePos]
     | UndefinedEntityLinkEntity EntityName LinkName EntityName [SourcePos]
-    | UndefinedEntityTrait EntityName Trait [SourcePos]
-    | UndefinedTraitPropTag TraitName PropName TagName [SourcePos]
-    | UndefinedTraitPropType TraitName PropName TypeName [SourcePos]
-    | UndefinedTraitLinkTag TraitName LinkName TagName [SourcePos]
-    | UndefinedTraitLinkEntity TraitName LinkName EntityName [SourcePos]
-    | UndefinedTraitParent TraitName TraitName [SourcePos]
     
-newtype AST = AST SchemaDeclaration
+newtype AST = AST SchemaDeclaration deriving (Show)
 
 type SchemaName = String
 type DataName = String
@@ -167,20 +137,20 @@ type LinkName = String
 type PrimName = String
 type PropName = String
 type TagName = String
-type TraitName = String
 type TypeName = String
 
-data SchemaDeclaration = SchemaDeclaration SchemaName [SchemaMember]
+data SchemaDeclaration = SchemaDeclaration SchemaName [SchemaMember] deriving (Show)
 
 data SchemaMember
     = DataDeclaration DataName [CaseDeclaration]
-    | EntityDeclaration EntityName [TraitName] [Field]
+    | EntityDeclaration EntityName [Field]
     | PrimDeclaration PrimName
     | TagDeclaration TagName
-    | TraitDeclaration TraitName [TraitName] [Field]
+    deriving (Show)
 
-data CaseDeclaration = CaseDeclaration CaseName [Field]
+data CaseDeclaration = CaseDeclaration CaseName [Field] deriving (Show)
 
 data Field
     = PropField PropName TypeName [TagName]
     | LinkField LinkName EntityName [TagName]
+    deriving (Show)

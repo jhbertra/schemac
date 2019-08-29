@@ -1,61 +1,92 @@
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-{-# LANGUAGE GADTs, FlexibleContexts, TypeOperators, DataKinds, PolyKinds #-}
-
 module Schemac.Parser
     ( parseSchema
     ) where
 
-import Data.ByteString
+import Control.Monad
+import Control.Monad.State
+
+import Data.ByteString (ByteString)
 import Data.Either
 import Data.Functor.Identity
 
-import Text.Parsec
+import Text.Parsec hiding (State)
+import Text.Parsec.Indent
 
 import Schemac.Types
 
+type Parser a = IndentParser ByteString () a
+
 parseSchema :: SourceName -> ByteString -> Either ParseError AST
-parseSchema = runParser schemaParser initState
-  where
-    initState = ParserState
+parseSchema = runIndentParser schemaParser ()
 
-schemaParser :: Parsec ByteString ParserState AST
-schemaParser = 
-    fmap AST $ SchemaDeclaration
-        <$> declaration "schema"
-        <*> many memberParser
+schemaParser :: Parser AST
+schemaParser = fmap AST $ SchemaDeclaration
+    <$> declaration "schema"
+    <*> block memberParser
+    <* eof
 
-identifier :: Parsec ByteString ParserState String
+identifier :: Parser String
 identifier = (:) <$> letter <*> many alphaNum <?> "Identifier"
 
-memberParser :: Parsec ByteString ParserState SchemaMember
-memberParser = many1 newline *>
-    dataParser
+memberParser :: Parser SchemaMember
+memberParser = dataParser
     <|> entityParser
     <|> primParser
     <|> tagParser
-    <|> traitParser
 
-dataParser :: Parsec ByteString ParserState SchemaMember
-dataParser =
-    DataDeclaration
-        <$> declaration "data"
+dataParser :: Parser SchemaMember
+dataParser = 
+    (withBlock
+        DataDeclaration
+        (declaration "data")
+        caseParser
+    ) <?> "data definition"
 
-entityParser :: Parsec ByteString ParserState SchemaMember
-entityParser =
-    EntityDeclaration <$> declaration "entity"
+entityParser :: Parser SchemaMember
+entityParser = 
+    (withBlock
+        EntityDeclaration
+        (declaration "entity")
+        fieldParser
+    ) <?> "entity definition"
 
-primParser :: Parsec ByteString ParserState SchemaMember
-primParser = PrimDeclaration <$> declaration "prim"
+primParser :: Parser SchemaMember
+primParser = PrimDeclaration <$> declaration "prim" <?> "prim definition"
 
-tagParser :: Parsec ByteString ParserState SchemaMember
-tagParser = TagDeclaration <$> declaration "tag"
+tagParser :: Parser SchemaMember
+tagParser = TagDeclaration <$> declaration "tag" <?> "tag definition"
 
-traitParser :: Parsec ByteString ParserState SchemaMember
-traitParser =
-    TraitDeclaration <$> declaration "trait"
+caseParser :: Parser CaseDeclaration
+caseParser = 
+    (withBlock
+        CaseDeclaration
+        (declaration "case")
+        fieldParser
+    ) <?> "case definition"
 
-declaration :: String -> Parsec ByteString ParserState String
-declaration keyword = string keyword *> spaces *> identifier
+fieldParser :: Parser Field
+fieldParser = propParser <|> linkParser
 
+propParser :: Parser Field
+propParser = PropField
+    <$> declaration "prop"
+    <* spaces
+    <*> identifier
+    <* spaces
+    <*> tags
 
-data ParserState = ParserState
+linkParser :: Parser Field
+linkParser = LinkField
+    <$> declaration "link"
+    <* spaces
+    <*> identifier
+    <*> tags
+
+tags :: Parser [TagName]
+tags = many (char '@' *> identifier <* spaces)
+
+declaration :: String -> Parser String
+declaration keyword = string keyword *> spaces *> identifier <* spaces <?> keyword ++ " declaration"
+
+newlines :: Parser ()
+newlines = void $ many1 newline

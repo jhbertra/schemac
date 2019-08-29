@@ -27,6 +27,8 @@ dependencies:
 - polysemy-plugin
 - unordered-containers
 - parsec
+- indents
+- mtl
 
 default-extensions:
 - ApplicativeDo
