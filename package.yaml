@@ -23,6 +23,7 @@ dependencies:
 - base >= 4.7 && < 5
 - bytestring
 - hashable
+- hashmap
 - polysemy
 - polysemy-plugin
 - unordered-containers

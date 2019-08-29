@@ -7,9 +7,10 @@ module Schemac
 
 import Data.ByteString (readFile)
 
-import Control.Arrow
+import Control.Arrow hiding (first)
 import Control.Monad
 
+import Data.Bifunctor
 import Data.Either
 import Data.Hashable
 import Data.Maybe
@@ -25,6 +26,7 @@ import System.Environment
 
 import Schemac.Parser
 import Schemac.Types
+import Schemac.Validator
 
 data SchemacException
     = LinkEntityNotFound String String
@@ -37,7 +39,7 @@ defaultMain = do
     args <- getArgs
     forM_ args $ \arg -> do
         file <- readFile arg
-        print $ parseSchema arg file
+        print $ (first ((:[]) . ParseError) $ parseSchema arg file) >>= validateAST
 -- defaultMain = mapM_ print <=< runM
 --     . fmap fst
 --     . runOutputList

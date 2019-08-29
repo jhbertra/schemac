@@ -3,7 +3,7 @@ module Schemac.Parser
     ) where
 
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
 import Data.Either
@@ -11,6 +11,7 @@ import Data.Functor.Identity
 
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
+import Text.Parsec.Indent.Internal
 
 import Schemac.Types
 
@@ -21,7 +22,7 @@ parseSchema = runIndentParser schemaParser ()
 
 schemaParser :: Parser AST
 schemaParser = fmap AST $ SchemaDeclaration
-    <$> declaration "schema"
+    <$> fmap fst (declaration "schema")
     <*> block memberParser
     <* eof
 
@@ -85,8 +86,8 @@ linkParser = LinkField
 tags :: Parser [TagName]
 tags = many (char '@' *> identifier <* spaces)
 
-declaration :: String -> Parser String
-declaration keyword = string keyword *> spaces *> identifier <* spaces <?> keyword ++ " declaration"
+declaration :: String -> Parser (String, SourcePos)
+declaration keyword = string keyword *> spaces *> (flip (,) <$> statePos `liftM` getParserState <*> identifier) <* spaces <?> keyword ++ " declaration"
 
 newlines :: Parser ()
 newlines = void $ many1 newline

@@ -126,12 +126,13 @@ data SchemacError
     | UndefinedEntityPropType EntityName PropName TypeName [SourcePos]
     | UndefinedEntityLinkTag EntityName LinkName TagName [SourcePos]
     | UndefinedEntityLinkEntity EntityName LinkName EntityName [SourcePos]
+    deriving (Show)
     
 newtype AST = AST SchemaDeclaration deriving (Show)
 
 type SchemaName = String
-type DataName = String
 type CaseName = String
+type DataName = String
 type EntityName = String
 type LinkName = String
 type PrimName = String
@@ -142,15 +143,15 @@ type TypeName = String
 data SchemaDeclaration = SchemaDeclaration SchemaName [SchemaMember] deriving (Show)
 
 data SchemaMember
-    = DataDeclaration DataName [CaseDeclaration]
-    | EntityDeclaration EntityName [Field]
-    | PrimDeclaration PrimName
-    | TagDeclaration TagName
+    = DataDeclaration (DataName, SourcePos) [CaseDeclaration]
+    | EntityDeclaration (EntityName, SourcePos) [Field]
+    | PrimDeclaration (PrimName, SourcePos)
+    | TagDeclaration (TagName, SourcePos)
     deriving (Show)
 
-data CaseDeclaration = CaseDeclaration CaseName [Field] deriving (Show)
+data CaseDeclaration = CaseDeclaration (CaseName, SourcePos) [Field] deriving (Show)
 
 data Field
-    = PropField PropName TypeName [TagName]
-    | LinkField LinkName EntityName [TagName]
+    = PropField (PropName, SourcePos) TypeName [TagName]
+    | LinkField (LinkName, SourcePos) EntityName [TagName]
     deriving (Show)
