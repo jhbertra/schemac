@@ -52,6 +52,7 @@ library:
   source-dirs: src
   ghc-options:
   - -Wall
+  - -O2
 
 executables:
   schemac-exe:

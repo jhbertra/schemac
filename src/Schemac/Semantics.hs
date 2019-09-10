@@ -106,9 +106,10 @@ data SchemacException
     | DuplicateCaseProp DataName CaseName PropName [SourcePos]
     | DuplicateCasePropTag DataName CaseName PropName TagName [SourcePos]
     | DuplicateCaseLink DataName CaseName LinkName [SourcePos]
-    | DuplicateCaseLinkTag DataName CaseName LinkName Tag [SourcePos]
+    | DuplicateCaseLinkTag DataName CaseName LinkName TagName [SourcePos]
     | DuplicateEntity EntityName [SourcePos]
     | DuplicateEntityLink EntityName LinkName [SourcePos]
+    | DuplicateEntityLinkTag EntityName LinkName TagName [SourcePos]
     | DuplicateEntityProp EntityName PropName [SourcePos]
     | DuplicateEntityPropTag EntityName PropName TagName [SourcePos]
     | DuplicatePrim PrimName [SourcePos]
@@ -128,49 +129,79 @@ semanticAnalysis
     => AST
     -> m Schema
 semanticAnalysis (AST (SchemaNode name members)) = do
-    let duplicateDatas = findDuplicates . map (view dNodeName &&& view dNodeSourcePos) $ members ^.. each . _DataMember
-    let duplicateEntities = findDuplicates . map (view eNodeName &&& view eNodeSourcePos) $ members ^.. each . _EntityMember
-    let duplicatePrims = findDuplicates . map (view pNodeName &&& view pNodeSourcePos) $ members ^.. each . _PrimMember
-    let duplicateTags = findDuplicates . map (view tNodeName &&& view tNodeSourcePos) $ members ^.. each . _TagMember
+    let duplicateDatas = findDuplicates . map (_dNodeName &&& _dNodeSourcePos) $ members ^.. each . _DataMember
+    let duplicateEntities = findDuplicates . map (_eNodeName &&& _eNodeSourcePos) $ members ^.. each . _EntityMember
+    let duplicatePrims = findDuplicates . map (_pNodeName &&& _pNodeSourcePos) $ members ^.. each . _PrimMember
+    let duplicateTags = findDuplicates . map (_tNodeName &&& _tNodeSourcePos) $ members ^.. each . _TagMember
     let duplicateCases = findDuplicates
                         . concatMap (\d -> map
-                            ((const (view dNodeName d) &&& view cNodeName) &&& view cNodeSourcePos)
+                            ((const (_dNodeName d) &&& _cNodeName) &&& _cNodeSourcePos)
                             $ d ^.. dNodeCases . each
                         )
                         $ members ^.. each . _DataMember
     let duplicateCasePropNames = findDuplicates
                         . concatMap (\(d, c) -> map
-                            ((const (view dNodeName d) &&& const (view cNodeName c) &&& view prNodeName) &&& view prNodeSourcePos)
+                            ((const (_dNodeName d) &&& const (_cNodeName c) &&& _prNodeName) &&& _prNodeSourcePos)
                             $ c ^.. cNodeFields . each . _PropField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
                         $ members ^.. each . _DataMember
+    let duplicateCasePropTags = findDuplicates
+                        . concatMap (\(d, (c, p)) -> map
+                            ((const (_dNodeName d) &&& const (_cNodeName c) &&& const (_prNodeName p) &&& fst) &&& snd)
+                            $ p ^.. prNodeTags . each
+                        )
+                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _PropField)
+                        . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
+                        $ members ^.. each . _DataMember
     let duplicateCaseLinkNames = findDuplicates
                         . concatMap (\(d, c) -> map
-                            ((const (view dNodeName d) &&& const (view cNodeName c) &&& view lNodeName) &&& view lNodeSourcePos)
+                            ((const (_dNodeName d) &&& const (_cNodeName c) &&& _lNodeName) &&& _lNodeSourcePos)
                             $ c ^.. cNodeFields . each . _LinkField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
                         $ members ^.. each . _DataMember
+    let duplicateCaseLinkTags = findDuplicates
+                        . concatMap (\(d, (c, l)) -> map
+                            ((const (_dNodeName d) &&& const (_cNodeName c) &&& const (_lNodeName l) &&& fst) &&& snd)
+                            $ l ^.. lNodeTags . each
+                        )
+                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _LinkField)
+                        . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
+                        $ members ^.. each . _DataMember
     let duplicateEntityPropNames = findDuplicates
                         . concatMap (\e -> map
-                            ((const (view eNodeName e) &&& view prNodeName) &&& view prNodeSourcePos)
+                            ((const (_eNodeName e) &&& _prNodeName) &&& _prNodeSourcePos)
                             $ e ^.. eNodeFields . each . _PropField
                         )
                         $ members ^.. each . _EntityMember
+    let duplicateEntityPropTags = findDuplicates
+                        . concatMap (\(e, p) -> map
+                            ((const (_eNodeName e) &&& const (_prNodeName p) &&& fst) &&& snd)
+                            $ p ^.. prNodeTags . each
+                        )
+                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _PropField)
+                        $ members ^.. each . _EntityMember
     let duplicateEntityLinkNames = findDuplicates
                         . concatMap (\e -> map
-                            ((const (view eNodeName e) &&& view lNodeName) &&& view lNodeSourcePos)
+                            ((const (_eNodeName e) &&& _lNodeName) &&& _lNodeSourcePos)
                             $ e ^.. eNodeFields . each . _LinkField
                         )
+                        $ members ^.. each . _EntityMember
+    let duplicateEntityLinkTags = findDuplicates
+                        . concatMap (\(e, l) -> map
+                            ((const (_eNodeName e) &&& const (_lNodeName l) &&& fst) &&& snd)
+                            $ l ^.. lNodeTags . each
+                        )
+                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _LinkField)
                         $ members ^.. each . _EntityMember
 
     let unresolvedCasePropTypes = findUnresolved (members ^.. each . _PrimMember . pNodeName <> members ^.. each . _DataMember . dNodeName)
                         . concatMap (\(d, c) -> map
                             (view (prNodeType . tyNodeName)
-                                &&& const (view dNodeName d)
-                                &&& const (view cNodeName c)
-                                &&& view prNodeName
+                                &&& const (_dNodeName d)
+                                &&& const (_cNodeName c)
+                                &&& _prNodeName
                                 &&& view (prNodeType . tyNodeSourcePos)
                             )
                             $ c ^.. cNodeFields . each . _PropField
@@ -181,9 +212,9 @@ semanticAnalysis (AST (SchemaNode name members)) = do
     let unresolvedCaseLinkEntities = findUnresolved (members ^.. each . _EntityMember . eNodeName)
                         . concatMap (\(d, c) -> map
                             (view (lNodeType . tyNodeName)
-                                &&& const (view dNodeName d)
-                                &&& const (view cNodeName c)
-                                &&& view lNodeName
+                                &&& const (_dNodeName d)
+                                &&& const (_cNodeName c)
+                                &&& _lNodeName
                                 &&& view (lNodeType . tyNodeSourcePos)
                             )
                             $ c ^.. cNodeFields . each . _LinkField
@@ -194,8 +225,8 @@ semanticAnalysis (AST (SchemaNode name members)) = do
     let unresolvedEntityPropTypes = findUnresolved (members ^.. each . _PrimMember . pNodeName <> members ^.. each . _DataMember . dNodeName)
                         . concatMap (\e -> map
                             (view (prNodeType . tyNodeName)
-                                &&& const (view eNodeName e)
-                                &&& view prNodeName
+                                &&& const (_eNodeName e)
+                                &&& _prNodeName
                                 &&& view (prNodeType . tyNodeSourcePos)
                             )
                             $ e ^.. eNodeFields . each . _PropField
@@ -205,8 +236,8 @@ semanticAnalysis (AST (SchemaNode name members)) = do
     let unresolvedEntityLinkEntities = findUnresolved (members ^.. each . _EntityMember . eNodeName)
                         . concatMap (\e -> map
                             (view (lNodeType . tyNodeName)
-                                &&& const (view eNodeName e)
-                                &&& view lNodeName
+                                &&& const (_eNodeName e)
+                                &&& _lNodeName
                                 &&& view (lNodeType . tyNodeSourcePos)
                             )
                             $ e ^.. eNodeFields . each . _LinkField
@@ -215,11 +246,11 @@ semanticAnalysis (AST (SchemaNode name members)) = do
 
     let unresolvedCasePropTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(d, (c, p)) -> map
-                            (view _1
-                                &&& const (view dNodeName d)
-                                &&& const (view cNodeName c)
-                                &&& const (view prNodeName p)
-                                &&& view _2
+                            (fst
+                                &&& const (_dNodeName d)
+                                &&& const (_cNodeName c)
+                                &&& const (_prNodeName p)
+                                &&& snd
                             )
                             $ p ^.. prNodeTags . each
                         )
@@ -229,11 +260,11 @@ semanticAnalysis (AST (SchemaNode name members)) = do
 
     let unresolvedCaseLinkTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(d, (c, l)) -> map
-                            (view _1
-                                &&& const (view dNodeName d)
-                                &&& const (view cNodeName c)
-                                &&& const (view lNodeName l)
-                                &&& view _2
+                            (fst
+                                &&& const (_dNodeName d)
+                                &&& const (_cNodeName c)
+                                &&& const (_lNodeName l)
+                                &&& snd
                             )
                             $ l ^.. lNodeTags . each
                         )
@@ -243,10 +274,10 @@ semanticAnalysis (AST (SchemaNode name members)) = do
 
     let unresolvedEntityPropTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(e, p) -> map
-                            (view _1
-                                &&& const (view eNodeName e)
-                                &&& const (view prNodeName p)
-                                &&& view _2
+                            (fst
+                                &&& const (_eNodeName e)
+                                &&& const (_prNodeName p)
+                                &&& snd
                             )
                             $ p ^.. prNodeTags . each
                         )
@@ -255,10 +286,10 @@ semanticAnalysis (AST (SchemaNode name members)) = do
 
     let unresolvedEntityLinkTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(e, l) -> map
-                            (view _1
-                                &&& const (view eNodeName e)
-                                &&& const (view lNodeName l)
-                                &&& view _2
+                            (fst
+                                &&& const (_eNodeName e)
+                                &&& const (_lNodeName l)
+                                &&& snd
                             )
                             $ l ^.. lNodeTags . each
                         )
@@ -271,17 +302,21 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                 <> map (uncurry DuplicateTag) duplicateTags
                 <> map (\((d, c), ps) -> DuplicateCase d c ps) duplicateCases
                 <> map (\((d, (c, pr)), ps) -> DuplicateCaseProp d c pr ps) duplicateCasePropNames
+                <> map (\((d, (c, (p, t))), ps) -> DuplicateCasePropTag d c p t ps) duplicateCasePropTags
                 <> map (\((d, (c, l)), ps) -> DuplicateCaseLink d c l ps) duplicateCaseLinkNames
+                <> map (\((d, (c, (l, t))), ps) -> DuplicateCaseLinkTag d c l t ps) duplicateCaseLinkTags
                 <> map (\((e, pr), ps) -> DuplicateEntityProp e pr ps) duplicateEntityPropNames
+                <> map (\((e, (p, t)), ps) -> DuplicateEntityPropTag e p t ps) duplicateEntityPropTags
                 <> map (\((e, l), ps) -> DuplicateEntityLink e l ps) duplicateEntityLinkNames
-                <> map (\((d, (c, (l, (e, p))))) -> UnresolvedCaseLinkEntity d c l e p) unresolvedCaseLinkEntities
-                <> map (\((d, (c, (l, (t, p))))) -> UnresolvedCaseLinkTag d c l t p) unresolvedCaseLinkTags
-                <> map (\((d, (c, (pr, (t, p))))) -> UnresolvedCasePropTag d c pr t p) unresolvedCasePropTags
-                <> map (\((d, (c, (pr, (t, p))))) -> UnresolvedCasePropType d c pr t p) unresolvedCasePropTypes
-                <> map (\((e, (l, (e2, p)))) -> UnresolvedEntityLinkEntity e l e2 p) unresolvedEntityLinkEntities
-                <> map (\((e, (l, (t, p)))) -> UnresolvedEntityLinkTag e l t p) unresolvedEntityLinkTags
-                <> map (\((e, (pr, (t, p)))) -> UnresolvedEntityPropTag e pr t p) unresolvedEntityPropTags
-                <> map (\((e, (pr, (t, p)))) -> UnresolvedEntityPropType e pr t p) unresolvedEntityPropTypes
+                <> map (\((e, (l, t)), ps) -> DuplicateEntityLinkTag e l t ps) duplicateEntityLinkTags
+                <> map (\((e, (d, (c, (l, p))))) -> UnresolvedCaseLinkEntity d c l e p) unresolvedCaseLinkEntities
+                <> map (\((t, (d, (c, (l, p))))) -> UnresolvedCaseLinkTag d c l t p) unresolvedCaseLinkTags
+                <> map (\((t, (d, (c, (pr, p))))) -> UnresolvedCasePropTag d c pr t p) unresolvedCasePropTags
+                <> map (\((t, (d, (c, (pr, p))))) -> UnresolvedCasePropType d c pr t p) unresolvedCasePropTypes
+                <> map (\((e2, (e, (l, p)))) -> UnresolvedEntityLinkEntity e l e2 p) unresolvedEntityLinkEntities
+                <> map (\((t, (e, (l, p)))) -> UnresolvedEntityLinkTag e l t p) unresolvedEntityLinkTags
+                <> map (\((t, (e, (pr, p)))) -> UnresolvedEntityPropTag e pr t p) unresolvedEntityPropTags
+                <> map (\((t, (e, (pr, p)))) -> UnresolvedEntityPropType e pr t p) unresolvedEntityPropTypes
 
     if not $ null errors
         then throwError errors
