@@ -19,6 +19,7 @@ import Control.Arrow
 import Control.Lens
 import Control.Monad
 import Control.Monad.Error.Class
+import Control.Monad.Reader
 
 import Data.Function
 import Data.Hashable
@@ -71,7 +72,6 @@ data Entity = Entity
     , entityLinks :: [Link]
     , entityName :: String
     , entityProps :: [Prop]
-    , entityTraits :: [Int]
     } deriving (Show, Eq, Ord, Generic)
 instance Hashable Entity
 
@@ -124,46 +124,49 @@ data SchemacException
     | UnresolvedEntityPropType EntityName PropName TypeName SourcePos
     deriving (Show)
 
-semanticAnalysis :: MonadError [SchemacException] m => AST -> m Schema
+semanticAnalysis
+    :: (MonadError [SchemacException] m, MonadReader Int m)
+    => AST
+    -> m Schema
 semanticAnalysis (AST (SchemaNode name members)) = do
-    let duplicateDatas = findDuplicates . map (view dNodeName &&& view dNodeSourcePos) $ members ^.. each . _Data
-    let duplicateEntities = findDuplicates . map (view eNodeName &&& view eNodeSourcePos) $ members ^.. each . _Entity
-    let duplicatePrims = findDuplicates . map (view pNodeName &&& view pNodeSourcePos) $ members ^.. each . _Prim
-    let duplicateTags = findDuplicates . map (view tNodeName &&& view tNodeSourcePos) $ members ^.. each . _Tag
+    let duplicateDatas = findDuplicates . map (view dNodeName &&& view dNodeSourcePos) $ members ^.. each . _DataMember
+    let duplicateEntities = findDuplicates . map (view eNodeName &&& view eNodeSourcePos) $ members ^.. each . _EntityMember
+    let duplicatePrims = findDuplicates . map (view pNodeName &&& view pNodeSourcePos) $ members ^.. each . _PrimMember
+    let duplicateTags = findDuplicates . map (view tNodeName &&& view tNodeSourcePos) $ members ^.. each . _TagMember
     let duplicateCases = findDuplicates
                         . concatMap (\d -> map
                             ((const (view dNodeName d) &&& view cNodeName) &&& view cNodeSourcePos)
                             $ d ^.. dNodeCases . each
                         )
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
     let duplicateCasePropNames = findDuplicates
                         . concatMap (\(d, c) -> map
                             ((const (view dNodeName d) &&& const (view cNodeName c) &&& view prNodeName) &&& view prNodeSourcePos)
-                            $ c ^.. cNodeFields . each . _Prop
+                            $ c ^.. cNodeFields . each . _PropField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
     let duplicateCaseLinkNames = findDuplicates
                         . concatMap (\(d, c) -> map
                             ((const (view dNodeName d) &&& const (view cNodeName c) &&& view lNodeName) &&& view lNodeSourcePos)
-                            $ c ^.. cNodeFields . each . _Link
+                            $ c ^.. cNodeFields . each . _LinkField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
     let duplicateEntityPropNames = findDuplicates
                         . concatMap (\e -> map
                             ((const (view eNodeName e) &&& view prNodeName) &&& view prNodeSourcePos)
-                            $ e ^.. eNodeFields . each . _Prop
+                            $ e ^.. eNodeFields . each . _PropField
                         )
-                        $ members ^.. each . _Entity
+                        $ members ^.. each . _EntityMember
     let duplicateEntityLinkNames = findDuplicates
                         . concatMap (\e -> map
                             ((const (view eNodeName e) &&& view lNodeName) &&& view lNodeSourcePos)
-                            $ e ^.. eNodeFields . each . _Link
+                            $ e ^.. eNodeFields . each . _LinkField
                         )
-                        $ members ^.. each . _Entity
+                        $ members ^.. each . _EntityMember
 
-    let unresolvedCasePropTypes = findUnresolved (members ^.. each . _Prim . pNodeName <> members ^.. each . _Data . dNodeName)
+    let unresolvedCasePropTypes = findUnresolved (members ^.. each . _PrimMember . pNodeName <> members ^.. each . _DataMember . dNodeName)
                         . concatMap (\(d, c) -> map
                             (view (prNodeType . tyNodeName)
                                 &&& const (view dNodeName d)
@@ -171,12 +174,12 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                                 &&& view prNodeName
                                 &&& view (prNodeType . tyNodeSourcePos)
                             )
-                            $ c ^.. cNodeFields . each . _Prop
+                            $ c ^.. cNodeFields . each . _PropField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
 
-    let unresolvedCaseLinkEntities = findUnresolved (members ^.. each . _Entity . eNodeName)
+    let unresolvedCaseLinkEntities = findUnresolved (members ^.. each . _EntityMember . eNodeName)
                         . concatMap (\(d, c) -> map
                             (view (lNodeType . tyNodeName)
                                 &&& const (view dNodeName d)
@@ -184,34 +187,34 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                                 &&& view lNodeName
                                 &&& view (lNodeType . tyNodeSourcePos)
                             )
-                            $ c ^.. cNodeFields . each . _Link
+                            $ c ^.. cNodeFields . each . _LinkField
                         )
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
 
-    let unresolvedEntityPropTypes = findUnresolved (members ^.. each . _Prim . pNodeName <> members ^.. each . _Data . dNodeName)
+    let unresolvedEntityPropTypes = findUnresolved (members ^.. each . _PrimMember . pNodeName <> members ^.. each . _DataMember . dNodeName)
                         . concatMap (\e -> map
                             (view (prNodeType . tyNodeName)
                                 &&& const (view eNodeName e)
                                 &&& view prNodeName
                                 &&& view (prNodeType . tyNodeSourcePos)
                             )
-                            $ e ^.. eNodeFields . each . _Prop
+                            $ e ^.. eNodeFields . each . _PropField
                         )
-                        $ members ^.. each . _Entity
+                        $ members ^.. each . _EntityMember
 
-    let unresolvedEntityLinkEntities = findUnresolved (members ^.. each . _Entity . eNodeName)
+    let unresolvedEntityLinkEntities = findUnresolved (members ^.. each . _EntityMember . eNodeName)
                         . concatMap (\e -> map
                             (view (lNodeType . tyNodeName)
                                 &&& const (view eNodeName e)
                                 &&& view lNodeName
                                 &&& view (lNodeType . tyNodeSourcePos)
                             )
-                            $ e ^.. eNodeFields . each . _Link
+                            $ e ^.. eNodeFields . each . _LinkField
                         )
-                        $ members ^.. each . _Entity
+                        $ members ^.. each . _EntityMember
 
-    let unresolvedCasePropTags = findUnresolved (members ^.. each . _Tag . tNodeName)
+    let unresolvedCasePropTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(d, (c, p)) -> map
                             (view _1
                                 &&& const (view dNodeName d)
@@ -221,11 +224,11 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                             )
                             $ p ^.. prNodeTags . each
                         )
-                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _Prop)
+                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _PropField)
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
 
-    let unresolvedCaseLinkTags = findUnresolved (members ^.. each . _Tag . tNodeName)
+    let unresolvedCaseLinkTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(d, (c, l)) -> map
                             (view _1
                                 &&& const (view dNodeName d)
@@ -235,11 +238,11 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                             )
                             $ l ^.. lNodeTags . each
                         )
-                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _Link)
+                        . concatMap (\(d, c) -> map (const d &&& const c &&& id) $ c ^.. cNodeFields . each . _LinkField)
                         . concatMap (\d -> map (const d &&& id) $ d ^.. dNodeCases . each)
-                        $ members ^.. each . _Data
+                        $ members ^.. each . _DataMember
 
-    let unresolvedEntityPropTags = findUnresolved (members ^.. each . _Tag . tNodeName)
+    let unresolvedEntityPropTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(e, p) -> map
                             (view _1
                                 &&& const (view eNodeName e)
@@ -248,10 +251,10 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                             )
                             $ p ^.. prNodeTags . each
                         )
-                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _Prop)
-                        $ members ^.. each . _Entity
+                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _PropField)
+                        $ members ^.. each . _EntityMember
 
-    let unresolvedEntityLinkTags = findUnresolved (members ^.. each . _Tag . tNodeName)
+    let unresolvedEntityLinkTags = findUnresolved (members ^.. each . _TagMember . tNodeName)
                         . concatMap (\(e, l) -> map
                             (view _1
                                 &&& const (view eNodeName e)
@@ -260,8 +263,8 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                             )
                             $ l ^.. lNodeTags . each
                         )
-                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _Link)
-                        $ members ^.. each . _Entity
+                        . concatMap (\e -> map (const e &&& id) $ e ^.. eNodeFields . each . _LinkField)
+                        $ members ^.. each . _EntityMember
     
     let errors = map (uncurry DuplicateData) duplicateDatas
                 <> map (uncurry DuplicateEntity) duplicateEntities
@@ -281,25 +284,99 @@ semanticAnalysis (AST (SchemaNode name members)) = do
                 <> map (\((e, (pr, (t, p)))) -> UnresolvedEntityPropTag e pr t p) unresolvedEntityPropTags
                 <> map (\((e, (pr, (t, p)))) -> UnresolvedEntityPropType e pr t p) unresolvedEntityPropTypes
 
-    -- | UnresolvedEntityLinkEntity EntityName LinkName EntityName SourcePos
-    -- | UnresolvedEntityLinkTag EntityName LinkName TagName SourcePos
-    -- | UnresolvedEntityPropTag EntityName PropName TagName SourcePos
-    -- | UnresolvedEntityPropType EntityName PropName TypeName SourcePos
-
-    throwError errors
-
-    -- schemaId <- input
-    -- caseIds <- getIds . map (\(CaseDeclaration name _) -> name) . concatMap (\case { DataDeclaration _ cases -> cases; _ -> [] }) $ members
-    -- dataIds <- getIds . dataNames
-    -- entityIds <- getIds . entityNames
-    -- primIds <- getIds . primNames
-    -- tagIds <- getIds . tagNames
-    -- let caseFields = concatMap (\(CaseDeclaration _ fields) -> fields) . concatMap (\case { DataDeclaration _ cases -> cases; _ -> [] }) $ members
-    -- let entityFields = concatMap (\case { EntityDeclaration _ fields -> fields; _ -> [] }) $ members
-    -- let fields = caseFields <> entityFields
-    -- propIds <- getIds . concatMap (\case { PropField name _ _ -> [name]; _ -> [] }) $ fields
-    -- linkIds <- getIds . concatMap (\case { LinkField name _ _ -> [name]; _ -> [] }) $ fields
-    -- pure ()
+    if not $ null errors
+        then throwError errors
+        else do
+            schemaId <- ask
+            caseIds <- getIds $ members ^.. each . _DataMember . dNodeCases . each . cNodeName
+            dataIds <- getIds $ members ^.. each . _DataMember . dNodeName
+            entityIds <- getIds $ members ^.. each . _EntityMember . eNodeName
+            primIds <- getIds $ members ^.. each . _PrimMember . pNodeName
+            tagIds <- getIds $ members ^.. each . _TagMember . tNodeName
+            let caseFields = members ^.. each . _DataMember . dNodeCases . each . cNodeFields . each
+            let entityFields = members ^.. each . _EntityMember . eNodeFields . each
+            let fields = caseFields <> entityFields
+            propIds <- getIds $ fields ^.. each . _PropField . prNodeName
+            linkIds <- getIds $ fields ^.. each . _LinkField . lNodeName
+            
+            pure $ Schema
+                schemaId
+                (members
+                    ^.. each
+                    . _DataMember
+                    . to
+                        (\DataNode{..} -> Data
+                            (dataIds `unsafeLookup` _dNodeName)
+                            _dNodeName
+                            $ _dNodeCases
+                                ^.. each
+                                . to
+                                    (\CaseNode{..} -> Case
+                                        (caseIds `unsafeLookup` _cNodeName)
+                                        (_cNodeFields
+                                            ^.. each
+                                            . _LinkField
+                                            . to
+                                                (\LinkNode{..} -> Link
+                                                    (linkIds `unsafeLookup` _lNodeName)
+                                                    (unsafeLookup entityIds . _tyNodeName $ _lNodeType)
+                                                    _lNodeName
+                                                    $ map (unsafeLookup tagIds . fst) _lNodeTags
+                                                )
+                                        )
+                                        _cNodeName
+                                        $ _cNodeFields
+                                            ^.. each
+                                            . _PropField
+                                            . to
+                                                (\PropNode{..} -> Prop
+                                                    (propIds `unsafeLookup` _prNodeName)
+                                                    _prNodeName
+                                                    (map (unsafeLookup tagIds . fst) _prNodeTags)
+                                                    (fromMaybe
+                                                        (DataType . unsafeLookup dataIds $ _tyNodeName _prNodeType)
+                                                        $ PrimType <$> Map.lookup (_tyNodeName _prNodeType) primIds
+                                                    )
+                                                )
+                                    )        
+                        )
+                )
+                (members
+                    ^.. each
+                    . _EntityMember
+                    . to
+                        (\EntityNode{..} -> Entity
+                            (entityIds `unsafeLookup` _eNodeName)
+                            (_eNodeFields
+                                ^.. each
+                                . _LinkField
+                                . to
+                                    (\LinkNode{..} -> Link
+                                        (linkIds `unsafeLookup` _lNodeName)
+                                        (unsafeLookup entityIds . _tyNodeName $ _lNodeType)
+                                        _lNodeName
+                                        $ map (unsafeLookup tagIds . fst) _lNodeTags
+                                    )
+                            )
+                            _eNodeName
+                            $ _eNodeFields
+                                ^.. each
+                                . _PropField
+                                . to
+                                    (\PropNode{..} -> Prop
+                                        (propIds `unsafeLookup` _prNodeName)
+                                        _prNodeName
+                                        (map (unsafeLookup tagIds . fst) _prNodeTags)
+                                        (fromMaybe
+                                            (DataType . unsafeLookup dataIds $ _tyNodeName _prNodeType)
+                                            $ PrimType <$> Map.lookup (_tyNodeName _prNodeType) primIds
+                                        )
+                                    )
+                        )
+                )
+                name
+                (members ^.. each . _PrimMember . to (\PrimNode{..} -> Prim (primIds `unsafeLookup` _pNodeName) _pNodeName))
+                $ members ^.. each . _TagMember . to (\TagNode{..} -> Tag (tagIds `unsafeLookup` _tNodeName) _tNodeName)
   where
     findDuplicates :: Ord a => [(a, b)] -> [(a, [b])]
     findDuplicates =
@@ -310,8 +387,9 @@ semanticAnalysis (AST (SchemaNode name members)) = do
 
     findUnresolved :: [String] -> [(String, a)] -> [(String, a)]
     findUnresolved choices = filter (\a -> all (/= fst a) choices)
--- getIds
---     :: Member (Input Int) r
---     => [String]
---     -> Sem r (Map.HashMap Int String)
--- getIds = fmap Map.fromList . mapM (\n -> (,n) <$> input)
+    
+    getIds :: MonadReader Int m => [String] -> m (Map.HashMap String Int)
+    getIds = fmap Map.fromList . mapM (\n -> (n,) <$> ask)
+
+    unsafeLookup :: (Hashable a, Eq a) => Map.HashMap a b -> a -> b
+    unsafeLookup map a = case Map.lookup a map of Just b -> b

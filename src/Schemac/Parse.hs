@@ -6,10 +6,10 @@ module Schemac.Parse
     , sNodeName
     , sNodeMembers
     , SchemaMemberNode(..)
-    , _Data
-    , _Entity
-    , _Prim
-    , _Tag
+    , _DataMember
+    , _EntityMember
+    , _PrimMember
+    , _TagMember
     , DataNode(..)
     , dNodeSourcePos
     , dNodeName
@@ -29,8 +29,8 @@ module Schemac.Parse
     , cNodeName
     , cNodeFields
     , Field(..)
-    , _Prop
-    , _Link
+    , _PropField
+    , _LinkField
     , PropNode(..)
     , prNodeSourcePos
     , prNodeName
@@ -50,7 +50,7 @@ module Schemac.Parse
     , PropName
     , TagName
     , TypeName
-    , TypeNode
+    , TypeNode(..)
     , tyNodeSourcePos
     , tyNodeName
     , parseSchema
@@ -77,10 +77,10 @@ data SchemaNode = SchemaNode
     } deriving (Show)
 
 data SchemaMemberNode
-    = Data DataNode
-    | Entity EntityNode
-    | Prim PrimNode
-    | Tag TagNode
+    = DataMember DataNode
+    | EntityMember EntityNode
+    | PrimMember PrimNode
+    | TagMember TagNode
     deriving (Show)
 
 data DataNode = DataNode
@@ -112,8 +112,8 @@ data CaseNode = CaseNode
     } deriving (Show)
 
 data Field
-    = Prop PropNode
-    | Link LinkNode
+    = PropField PropNode
+    | LinkField LinkNode
     deriving (Show)
 
 data PropNode = PropNode
@@ -172,10 +172,10 @@ identifier :: Parser String
 identifier = (:) <$> letter <*> many alphaNum <?> "Identifier"
 
 member :: Parser SchemaMemberNode
-member = (Data <$> data' <?> "data definition")
-    <|> (Entity <$> entity <?> "entity definition")
-    <|> (Prim <$> prim <?> "prim definition")
-    <|> (Tag <$> tag <?> "tag definition")
+member = (DataMember <$> data' <?> "data definition")
+    <|> (EntityMember <$> entity <?> "entity definition")
+    <|> (PrimMember <$> prim <?> "prim definition")
+    <|> (TagMember <$> tag <?> "tag definition")
 
 data' :: Parser DataNode
 data' = withBlock
@@ -202,8 +202,8 @@ case' = withBlock
     field
 
 field :: Parser Field
-field = (Prop <$> prop <?> "prop definition")
-    <|> (Link <$> link <?> "link definition")
+field = (PropField <$> prop <?> "prop definition")
+    <|> (LinkField <$> link <?> "link definition")
 
 prop :: Parser PropNode
 prop = uncurry PropNode
