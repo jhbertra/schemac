@@ -30,6 +30,7 @@ dependencies:
 - parsec
 - indents
 - mtl
+- lens
 
 default-extensions:
 - ApplicativeDo
