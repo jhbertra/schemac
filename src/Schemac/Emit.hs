@@ -5,18 +5,7 @@ module Schemac.Emit
     , digest
     ) where
 
-import Data.ByteString (readFile)
-import Data.Either
-
 import Control.Arrow hiding (first)
-import Control.Monad
-
-import Data.Hashable
-import Data.Maybe
-
-import Prelude hiding (readFile)
-
-import System.Environment
 
 import Schemac.Semantics
 
@@ -57,7 +46,7 @@ class (Monad m) => MonadEmit m where
     emit :: Emit -> m ()
 
 digest :: MonadEmit m => Schema -> m ()
-digest schema@Schema{..} = do
+digest Schema{..} = do
     -- Declarations
     emit $ DecSchema schemaId
     mapM_ (emit . DecCase . caseId) (concatMap dataCases schemaDatas)

@@ -8,7 +8,6 @@ module Schemac
 import Data.ByteString (readFile)
 import Data.Either
 
-import Control.Arrow hiding (first)
 import Control.Lens
 import Control.Monad
 import Control.Monad.Except
@@ -16,9 +15,6 @@ import Control.Monad.State.Strict
 import Control.Monad.Reader
 
 import Data.Bifunctor
-import Data.Either
-import Data.Hashable
-import Data.Maybe
 
 import Prelude hiding (readFile)
 

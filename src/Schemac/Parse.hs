@@ -57,17 +57,12 @@ module Schemac.Parse
     ) where
 
 import Control.Monad
-import Control.Monad.Reader
 import Control.Lens
 
-import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
-import Data.Either
-import Data.Functor.Identity
 
 import Text.Parsec hiding (State)
 import Text.Parsec.Indent
-import Text.Parsec.Indent.Internal
 
 newtype AST = AST { unAST :: SchemaNode } deriving (Show)
 
@@ -234,6 +229,3 @@ declaration keyword = string keyword *> spaces *> ((,) <$> sourcePos <*> identif
 
 sourcePos :: Parser SourcePos
 sourcePos = statePos `liftM` getParserState
-
-newlines :: Parser ()
-newlines = void $ many1 newline

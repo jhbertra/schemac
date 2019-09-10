@@ -17,7 +17,6 @@ module Schemac.Semantics
 
 import Control.Arrow
 import Control.Lens
-import Control.Monad
 import Control.Monad.Error.Class
 import Control.Monad.Reader
 
@@ -392,4 +391,4 @@ semanticAnalysis (AST (SchemaNode name members)) = do
     getIds = fmap Map.fromList . mapM (\n -> (n,) <$> ask)
 
     unsafeLookup :: (Hashable a, Eq a) => Map.HashMap a b -> a -> b
-    unsafeLookup map a = case Map.lookup a map of Just b -> b
+    unsafeLookup hMap a = case Map.lookup a hMap of Just b -> b
